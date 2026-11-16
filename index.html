@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="theme-color" content="#6ec8f5" />
+    <meta name="color-scheme" content="light" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Hill Drive" />
+    <meta name="application-name" content="Hill Drive" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta
+      name="description"
+      content="Hill Drive — physics hill-climb racing for phones. Installable offline PWA."
+    />
+    <title>Hill Drive</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-180.png" sizes="180x180" />
+  </head>
+  <body data-chrome="menu" data-offline="0" data-offline-ready="0">
+    <div id="game-shell">
+      <div id="game-container"></div>
+      <p id="boot-fallback" role="status">Hill Drive · warming up the hills…</p>
+
+      <div id="touch-controls" hidden>
+        <button id="btn-pause" type="button" aria-label="Pause">❚❚</button>
+        <button id="pedal-brake" class="pedal" type="button" aria-label="Brake" aria-pressed="false">
+          BRAKE
+        </button>
+        <button id="pedal-gas" class="pedal" type="button" aria-label="Gas" aria-pressed="false">GAS</button>
+      </div>
+    </div>
+
+    <div id="pwa-offline" class="pwa-toast" hidden>You're offline — keep driving.</div>
+    <div id="pwa-offline-ready" class="pwa-toast" hidden>Ready for offline play.</div>
+    <div id="pwa-update" class="pwa-toast" hidden>
+      Update available
+      <button id="pwa-update-btn" type="button">Refresh</button>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

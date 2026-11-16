@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Hill Drive">
+  <rect width="64" height="64" rx="14" fill="#6ec8f5"/>
+  <path d="M0 44 C12 34 22 48 32 40 C42 32 50 46 64 38 L64 64 L0 64 Z" fill="#8b5a2b"/>
+  <path d="M0 44 C12 34 22 48 32 40 C42 32 50 46 64 38" fill="none" stroke="#4caf50" stroke-width="4"/>
+  <rect x="18" y="28" width="28" height="12" rx="3" fill="#e53935"/>
+  <circle cx="24" cy="42" r="6" fill="#212121"/>
+  <circle cx="40" cy="42" r="6" fill="#212121"/>
+</svg>
