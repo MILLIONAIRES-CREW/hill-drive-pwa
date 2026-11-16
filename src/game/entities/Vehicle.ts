@@ -171,9 +171,17 @@ export class Vehicle {
     if (onGround) {
       const slope = Math.atan2(front.position.y - rear.position.y, front.position.x - rear.position.x);
       const delta = Phaser.Math.Angle.Wrap(slope - chassisBody.angle);
-      Body.setAngularVelocity(chassisBody, chassisBody.angularVelocity * 0.84 + delta * 0.05);
+      Body.setAngularVelocity(chassisBody, chassisBody.angularVelocity * 0.82 + delta * 0.1);
     } else if (Math.abs(chassisBody.angularVelocity) > PHYSICS.maxChassisSpin) {
       Body.setAngularVelocity(chassisBody, chassisBody.angularVelocity * 0.92);
+    }
+
+    const vx = chassisBody.velocity.x;
+    if (vx > PHYSICS.maxDriveSpeed || vx < -4) {
+      Body.setVelocity(chassisBody, {
+        x: Phaser.Math.Clamp(vx, -4, PHYSICS.maxDriveSpeed),
+        y: chassisBody.velocity.y,
+      });
     }
 
     if (this.gas > 0) {
@@ -181,11 +189,12 @@ export class Vehicle {
         const wheelSpin = -chassisBody.velocity.x * 0.08 * this.gas;
         Body.setAngularVelocity(rear, wheelSpin);
         Body.setAngularVelocity(front, wheelSpin * 0.9);
-        const nextVx = chassisBody.velocity.x + PHYSICS.driveAccel * this.gas * deltaSec * 60;
-        Body.setVelocity(chassisBody, {
-          x: Phaser.Math.Clamp(nextVx, -5, PHYSICS.maxDriveSpeed),
-          y: chassisBody.velocity.y,
-        });
+        if (chassisBody.velocity.x < PHYSICS.maxDriveSpeed) {
+          Body.applyForce(chassisBody, chassisBody.position, {
+            x: PHYSICS.driveForce * this.gas,
+            y: 0,
+          });
+        }
       } else {
         Body.setAngularVelocity(
           chassisBody,
@@ -200,9 +209,12 @@ export class Vehicle {
 
     if (this.brake > 0) {
       if (onGround) {
-        const nextVx = chassisBody.velocity.x - PHYSICS.brakeAccel * this.brake * deltaSec * 60;
+        Body.applyForce(chassisBody, chassisBody.position, {
+          x: -PHYSICS.brakeForce * this.brake,
+          y: 0,
+        });
         Body.setVelocity(chassisBody, {
-          x: Phaser.Math.Clamp(nextVx, -5, PHYSICS.maxDriveSpeed),
+          x: chassisBody.velocity.x * (1 - 0.08 * this.brake),
           y: chassisBody.velocity.y,
         });
       } else {
@@ -233,6 +245,11 @@ export class Vehicle {
       this.flipTimer += deltaSec;
     } else {
       this.flipTimer = Math.max(0, this.flipTimer - deltaSec * 2);
+    }
+
+    const cappedVx = Phaser.Math.Clamp(chassisBody.velocity.x, -4, PHYSICS.maxDriveSpeed);
+    if (cappedVx !== chassisBody.velocity.x) {
+      Body.setVelocity(chassisBody, { x: cappedVx, y: chassisBody.velocity.y });
     }
   }
 
