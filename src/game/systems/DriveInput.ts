@@ -19,6 +19,7 @@ export function bindDriveControls(): void {
 
   const gas = document.getElementById('pedal-gas');
   const brake = document.getElementById('pedal-brake');
+  const boost = document.getElementById('pedal-boost');
   const pause = document.getElementById('btn-pause');
 
   const bindPedal = (el: HTMLElement | null, set: (v: boolean) => void): void => {
@@ -44,6 +45,9 @@ export function bindDriveControls(): void {
   });
   bindPedal(brake instanceof HTMLElement ? brake : null, (v) => {
     brakeHeld = v;
+  });
+  bindPedal(boost instanceof HTMLElement ? boost : null, (v) => {
+    boostHeld = v;
   });
 
   pause?.addEventListener('pointerdown', (e) => {

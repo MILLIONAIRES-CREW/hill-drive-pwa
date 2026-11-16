@@ -32,6 +32,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.events.off('shutdown', this.onShutdown, this);
+    this.events.once('shutdown', this.onShutdown, this);
+
     this.ended = false;
     this.runCoins = 0;
     this.runGems = 0;
@@ -120,7 +123,6 @@ export class GameScene extends Phaser.Scene {
     const milestones = Math.floor(distanceM / RUN.gemEveryMeters);
     if (milestones > this.gemMilestones) {
       this.runGems += milestones - this.gemMilestones;
-      this.bankGems += milestones - this.gemMilestones;
       this.gemMilestones = milestones;
       this.boost.add(0.15);
       this.fuel.add(0.08);
@@ -129,7 +131,7 @@ export class GameScene extends Phaser.Scene {
     this.hud.update({
       runCoins: this.runCoins,
       bankCoins: this.bankCoins,
-      gems: this.bankGems,
+      gems: this.bankGems + this.runGems,
       distanceM,
       bestM: Math.max(this.bestM, distanceM),
       fuel: this.fuel.getFuel(),
@@ -169,7 +171,7 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  shutdown(): void {
+  private onShutdown(): void {
     setTouchControlsVisible(false);
     for (const c of this.coins) {
       c.destroy();

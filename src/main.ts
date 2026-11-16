@@ -9,28 +9,24 @@ import './styles/global.css';
 bindPwaInstallListeners();
 bindDriveControls();
 
-const game = boot();
+let game = boot();
 
 if (import.meta.env.DEV) {
   (window as Window & { hillDrive?: Phaser.Game | undefined }).hillDrive = game;
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (!game) {
+  if (!game || document.hidden === false) {
     return;
   }
   const gameScene = game.scene.getScene(SceneKeys.Game);
   if (!gameScene) {
     return;
   }
-  if (document.hidden) {
-    if (gameScene.scene.isActive() && !gameScene.scene.isPaused()) {
-      gameScene.scene.pause();
-      gameScene.scene.launch(SceneKeys.Pause);
-      (gameScene as Phaser.Scene & { __pausedByHide?: boolean }).__pausedByHide = true;
-    }
-  } else if ((gameScene as Phaser.Scene & { __pausedByHide?: boolean }).__pausedByHide) {
-    (gameScene as Phaser.Scene & { __pausedByHide?: boolean }).__pausedByHide = false;
+  // Pause into the overlay; user taps Resume when they return.
+  if (gameScene.scene.isActive() && !gameScene.scene.isPaused()) {
+    gameScene.scene.pause();
+    gameScene.scene.launch(SceneKeys.Pause);
   }
 });
 
@@ -42,13 +38,36 @@ window.addEventListener('orientationchange', () => {
   window.setTimeout(() => game?.scale.refresh(), 180);
 });
 
-window.addEventListener(
-  'pagehide',
-  () => {
-    game?.destroy(true);
-  },
-  { once: true },
-);
+window.addEventListener('pagehide', (event) => {
+  // Keep the instance alive for bfcache restores (persisted === true).
+  if (event.persisted) {
+    return;
+  }
+  game?.destroy(true);
+  game = undefined;
+  if (import.meta.env.DEV) {
+    (window as Window & { hillDrive?: Phaser.Game | undefined }).hillDrive = undefined;
+  }
+});
+
+window.addEventListener('pageshow', (event) => {
+  if (!event.persisted && game) {
+    return;
+  }
+  if (game) {
+    game.scale.refresh();
+    return;
+  }
+  const fallback = document.getElementById('boot-fallback');
+  if (fallback) {
+    fallback.hidden = false;
+    fallback.textContent = 'Hill Drive · warming up the hills…';
+  }
+  game = boot();
+  if (import.meta.env.DEV) {
+    (window as Window & { hillDrive?: Phaser.Game | undefined }).hillDrive = game;
+  }
+});
 
 if (import.meta.env.PROD) {
   const updateBanner = document.getElementById('pwa-update');

@@ -80,7 +80,7 @@ export class MenuScene extends Phaser.Scene {
     }, 220);
 
     this.add
-      .text(GAME_WIDTH / 2, 680, `v${GAME_VERSION} · ← brake · → gas · space boost`, {
+      .text(GAME_WIDTH / 2, 680, `v${GAME_VERSION} · BRAKE · BOOST · GAS · ←/→/space`, {
         fontFamily: 'system-ui, sans-serif',
         fontSize: '14px',
         color: '#455a64',

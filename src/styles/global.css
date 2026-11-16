@@ -136,6 +136,19 @@ body {
   right: calc(18px + env(safe-area-inset-right));
 }
 
+#pedal-boost {
+  right: calc(18px + env(safe-area-inset-right) + min(148px, 24vw));
+  width: min(100px, 17vw);
+  height: min(100px, 17vw);
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  font-size: 14px;
+  background: rgba(0, 188, 212, 0.78);
+}
+
+#pedal-boost[aria-pressed='true'] {
+  background: rgba(0, 188, 212, 0.95);
+}
+
 #btn-pause {
   position: absolute;
   top: calc(12px + env(safe-area-inset-top));

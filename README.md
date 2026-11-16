@@ -22,5 +22,5 @@ npm run preview
 
 - **GAS** (right pedal / → / D) — drive forward; spin in air
 - **BRAKE** (left pedal / ← / A) — reverse / slow; counter-spin in air
-- **Boost** (Space / Shift) — spend boost meter
+- **BOOST** (pedal left of GAS / Space / Shift) — spend boost meter
 - **Pause** (❚❚ / Esc / P)
