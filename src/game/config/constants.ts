@@ -31,22 +31,16 @@ export const COLORS = {
 } as const;
 
 export const PHYSICS = {
-  gravityY: 1.6,
-  wheelRadius: 28,
-  chassisWidth: 110,
-  chassisHeight: 36,
-  axleStiffness: 0.24,
-  axleDamping: 0.12,
-  gasTorque: 0.1,
-  brakeTorque: 0.08,
-  driveForce: 0.014,
-  brakeForce: 0.012,
+  gravityY: 1.4,
+  wheelRadius: 26,
+  chassisWidth: 118,
+  chassisHeight: 32,
+  wheelDrive: 0.55,
+  driveForce: 0.009,
+  brakeForce: 0.008,
   maxDriveSpeed: 9,
-  airSpin: 0.035,
-  maxWheelSpeed: 0.55,
-  maxChassisSpin: 0.14,
-  boostForce: 0.014,
-  groundRayLength: 34,
+  airSpin: 0.02,
+  boostForce: 0.01,
 } as const;
 
 /** World meters: 1 meter ≈ PIXELS_PER_METER world pixels. */

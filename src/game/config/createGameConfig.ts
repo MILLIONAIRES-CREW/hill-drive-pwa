@@ -25,7 +25,7 @@ export function createGameConfig(parent: HTMLElement): Phaser.Types.Core.GameCon
     physics: {
       default: 'matter',
       matter: {
-        gravity: { x: 0, y: 1.6 },
+        gravity: { x: 0, y: 1.4 },
         enableSleeping: true,
         positionIterations: 8,
         velocityIterations: 6,

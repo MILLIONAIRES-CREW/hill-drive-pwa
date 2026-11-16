@@ -20,7 +20,7 @@ export class GameOverScene extends Phaser.Scene {
     document.body.dataset.chrome = 'over';
     setTouchControlsVisible(false);
 
-    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.5);
+    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x10263a, 0.94);
 
     this.add
       .text(GAME_WIDTH / 2, 150, 'RUN OVER', {

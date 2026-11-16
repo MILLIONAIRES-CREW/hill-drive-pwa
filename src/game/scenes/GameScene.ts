@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { COLORS, GAME_HEIGHT, GAME_WIDTH, PIXELS_PER_METER, RUN, TERRAIN } from '../config/constants';
+import { COLORS, GAME_HEIGHT, GAME_WIDTH, PHYSICS, PIXELS_PER_METER, RUN, TERRAIN } from '../config/constants';
 import { SceneKeys } from '../config/sceneKeys';
 import { CoinPickup } from '../entities/CoinPickup';
 import { Vehicle } from '../entities/Vehicle';
@@ -52,6 +52,12 @@ export class GameScene extends Phaser.Scene {
 
     document.body.dataset.chrome = 'game';
     setTouchControlsVisible(true);
+    if (this.scene.isActive(SceneKeys.Menu)) {
+      this.scene.stop(SceneKeys.Menu);
+    }
+    if (this.scene.isActive(SceneKeys.GameOver)) {
+      this.scene.stop(SceneKeys.GameOver);
+    }
 
     this.drawSky();
 
@@ -61,7 +67,7 @@ export class GameScene extends Phaser.Scene {
     this.startX = 80;
 
     this.matter.world.setBounds(TERRAIN.startX - 200, -400, this.worldWidth + 400, 1400, 64, true, true, false, true);
-    this.matter.world.setGravity(0, 1.6);
+    this.matter.world.setGravity(0, PHYSICS.gravityY);
 
     this.vehicle = new Vehicle(this, this.startX, terrain.startY);
 

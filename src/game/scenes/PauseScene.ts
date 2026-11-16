@@ -10,7 +10,7 @@ export class PauseScene extends Phaser.Scene {
 
   create(): void {
     setTouchControlsVisible(false);
-    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.45);
+    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x10263a, 0.82);
 
     this.add
       .text(GAME_WIDTH / 2, 220, 'PAUSED', {

@@ -3,260 +3,189 @@ import { COLORS, PHYSICS, TERRAIN } from '../config/constants';
 
 export type CoinSpot = { x: number; y: number; value: 5 | 25 };
 
-type MatterGO = Phaser.Physics.Matter.Image | Phaser.Physics.Matter.Sprite;
-
-function asBody(result: MatterGO | MatterJS.BodyType): MatterJS.BodyType {
-  if (typeof result === 'object' && result !== null && 'body' in result && result.body) {
-    return result.body as MatterJS.BodyType;
-  }
-  return result as MatterJS.BodyType;
-}
-
 export type TerrainBuild = {
   coinSpots: CoinSpot[];
   worldWidth: number;
   startY: number;
+  heightAt: (x: number) => number;
   dispose: () => void;
 };
 
-function heightAt(x: number): number {
-  const t = x * 0.0042;
-  return (
+export function heightAt(x: number): number {
+  const t = x * 0.0036;
+  const hilly =
     TERRAIN.baseY +
     Math.sin(t) * TERRAIN.amplitude +
-    Math.sin(t * 2.3 + 1.1) * (TERRAIN.amplitude * 0.45) +
-    Math.sin(t * 0.37) * 40
-  );
+    Math.sin(t * 2.1 + 0.6) * (TERRAIN.amplitude * 0.38) +
+    Math.sin(t * 0.45) * 28;
+  if (x >= 700) {
+    return hilly;
+  }
+  const flat = TERRAIN.baseY + 20;
+  const blend = Math.max(0, x) / 700;
+  return flat * (1 - blend) + hilly * blend;
 }
 
+/** Short static slabs follow the hills. Each slab is convex, so wheels grip instead of clipping a giant polygon. */
 export function buildTerrain(scene: Phaser.Scene): TerrainBuild {
-  const points: { x: number; y: number }[] = [];
-  const coinSpots: CoinSpot[] = [];
   const bodies: MatterJS.BodyType[] = [];
-  const matterGos: MatterGO[] = [];
   const visuals: Phaser.GameObjects.GameObject[] = [];
+  const coinSpots: CoinSpot[] = [];
 
-  const trackMatter = (result: MatterGO | MatterJS.BodyType): void => {
-    bodies.push(asBody(result));
-    if (typeof result === 'object' && result !== null && 'destroy' in result) {
-      matterGos.push(result as MatterGO);
+  const dirt = scene.add.graphics().setDepth(1);
+  visuals.push(dirt);
+  dirt.fillStyle(COLORS.dirt, 1);
+  dirt.beginPath();
+
+  const grass = scene.add.graphics().setDepth(2);
+  visuals.push(grass);
+  grass.lineStyle(8, COLORS.grass, 1);
+  grass.beginPath();
+
+  let started = false;
+  const step = TERRAIN.sampleStep;
+
+  const strokeTo = (x: number, y: number): void => {
+    if (!started) {
+      dirt.moveTo(x, 980);
+      dirt.lineTo(x, y);
+      grass.moveTo(x, y);
+      started = true;
+      return;
     }
+    dirt.lineTo(x, y);
+    grass.lineTo(x, y);
   };
 
-  for (let x = TERRAIN.startX; x <= TERRAIN.endX; x += TERRAIN.sampleStep) {
-    const inGap = x >= TERRAIN.bridgeGapStart && x <= TERRAIN.bridgeGapEnd;
+  const addSlab = (x1: number, y1: number, x2: number, y2: number, label: string): void => {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const length = Math.hypot(dx, dy);
+    const angle = Math.atan2(dy, dx);
+    const cx = (x1 + x2) / 2;
+    const cy = (y1 + y2) / 2 + 10;
+    const slab = scene.matter.add.rectangle(cx, cy, length + 6, 22, {
+      isStatic: true,
+      angle,
+      friction: 0.95,
+      frictionStatic: 1,
+      restitution: 0,
+      label,
+    });
+    bodies.push(slab);
+    strokeTo(x1, y1);
+  };
+
+  for (let x = TERRAIN.startX; x < TERRAIN.endX; x += step) {
+    const next = Math.min(TERRAIN.endX, x + step);
+    const inGap = x >= TERRAIN.bridgeGapStart && x < TERRAIN.bridgeGapEnd;
     if (inGap) {
       continue;
     }
-    let y = heightAt(x);
-    if (x < TERRAIN.bridgeGapStart && x > TERRAIN.bridgeGapStart - 80) {
-      y = Phaser.Math.Linear(y, TERRAIN.bridgeY, (x - (TERRAIN.bridgeGapStart - 80)) / 80);
-    }
-    if (x > TERRAIN.bridgeGapEnd && x < TERRAIN.bridgeGapEnd + 80) {
-      y = Phaser.Math.Linear(TERRAIN.bridgeY, y, (x - TERRAIN.bridgeGapEnd) / 80);
-    }
-    points.push({ x, y });
+    addSlab(x, heightAt(x), next, heightAt(next), 'ground');
   }
 
-  const left = points.filter((p) => p.x < TERRAIN.bridgeGapStart);
-  const right = points.filter((p) => p.x > TERRAIN.bridgeGapEnd);
+  if (started) {
+    dirt.lineTo(TERRAIN.endX, 980);
+    dirt.closePath();
+    dirt.fillPath();
+    grass.strokePath();
+  }
 
-  addGroundBody(scene, left, trackMatter);
-  addGroundBody(scene, right, trackMatter);
-  drawGroundVisual(scene, left, visuals);
-  drawGroundVisual(scene, right, visuals);
-  buildRopeBridge(scene, trackMatter, visuals);
+  buildBridge(scene, bodies, visuals);
   placeCoins(coinSpots);
 
   return {
     coinSpots,
     worldWidth: TERRAIN.endX + 400,
-    startY: heightAt(80) - (PHYSICS.wheelRadius * 2 + 34),
+    startY: heightAt(120) - PHYSICS.wheelRadius - 36,
+    heightAt,
     dispose: () => {
       const world = scene.matter?.world;
       if (world && bodies.length > 0) {
-        const live = bodies.filter((body) => world.getAllBodies().includes(body));
-        if (live.length > 0) {
-          world.remove(live, true);
+        const live = new Set(world.getAllBodies());
+        const still = bodies.filter((body) => live.has(body));
+        if (still.length > 0) {
+          world.remove(still, true);
         }
       }
-      for (const go of matterGos) {
-        if (go.active) {
-          go.destroy();
-        }
-      }
-      for (const v of visuals) {
-        if (v.active) {
-          v.destroy();
+      for (const visual of visuals) {
+        if (visual.active) {
+          visual.destroy();
         }
       }
     },
   };
 }
 
-function addGroundBody(
+function buildBridge(
   scene: Phaser.Scene,
-  ridge: { x: number; y: number }[],
-  track: (result: MatterGO | MatterJS.BodyType) => void,
-): void {
-  if (ridge.length < 2) {
-    return;
-  }
-  const bottom = 900;
-  const verts: { x: number; y: number }[] = [];
-  for (const p of ridge) {
-    verts.push({ x: p.x, y: p.y });
-  }
-  const last = ridge[ridge.length - 1]!;
-  const first = ridge[0]!;
-  verts.push({ x: last.x, y: bottom });
-  verts.push({ x: first.x, y: bottom });
-
-  let cx = 0;
-  let cy = 0;
-  for (const v of verts) {
-    cx += v.x;
-    cy += v.y;
-  }
-  cx /= verts.length;
-  cy /= verts.length;
-  const local = verts.map((v) => ({ x: v.x - cx, y: v.y - cy }));
-
-  track(
-    scene.matter.add.fromVertices(
-      cx,
-      cy,
-      local,
-      {
-        isStatic: true,
-        friction: 0.9,
-        restitution: 0.02,
-        label: 'ground',
-      },
-      true,
-      0.01,
-      10,
-    ),
-  );
-}
-
-function drawGroundVisual(
-  scene: Phaser.Scene,
-  ridge: { x: number; y: number }[],
+  bodies: MatterJS.BodyType[],
   visuals: Phaser.GameObjects.GameObject[],
 ): void {
-  if (ridge.length < 2) {
-    return;
-  }
-  const g = scene.add.graphics().setDepth(1);
-  visuals.push(g);
-  g.fillStyle(COLORS.dirt, 1);
-  g.beginPath();
-  g.moveTo(ridge[0]!.x, 900);
-  g.lineTo(ridge[0]!.x, ridge[0]!.y);
-  for (let i = 1; i < ridge.length; i += 1) {
-    g.lineTo(ridge[i]!.x, ridge[i]!.y);
-  }
-  g.lineTo(ridge[ridge.length - 1]!.x, 900);
-  g.closePath();
-  g.fillPath();
-
-  g.lineStyle(10, COLORS.grass, 1);
-  g.beginPath();
-  g.moveTo(ridge[0]!.x, ridge[0]!.y);
-  for (let i = 1; i < ridge.length; i += 1) {
-    g.lineTo(ridge[i]!.x, ridge[i]!.y);
-  }
-  g.strokePath();
-
-  g.lineStyle(4, COLORS.grassDark, 1);
-  g.beginPath();
-  g.moveTo(ridge[0]!.x, ridge[0]!.y + 4);
-  for (let i = 1; i < ridge.length; i += 1) {
-    g.lineTo(ridge[i]!.x, ridge[i]!.y + 4);
-  }
-  g.strokePath();
-}
-
-function buildRopeBridge(
-  scene: Phaser.Scene,
-  trackMatter: (result: MatterGO | MatterJS.BodyType) => void,
-  visuals: Phaser.GameObjects.GameObject[],
-): void {
-  const startX = TERRAIN.bridgeGapStart + 10;
-  const endX = TERRAIN.bridgeGapEnd - 10;
-  const y = TERRAIN.bridgeY;
+  const startX = TERRAIN.bridgeGapStart;
+  const endX = TERRAIN.bridgeGapEnd;
   const n = TERRAIN.bridgeSegments;
   const span = endX - startX;
-  const segW = span / n;
+  const posts = scene.add.graphics().setDepth(3);
+  visuals.push(posts);
+  posts.fillStyle(COLORS.dirtDark, 1);
+  posts.fillRect(startX - 10, TERRAIN.bridgeY - 50, 16, 80);
+  posts.fillRect(endX - 6, TERRAIN.bridgeY - 50, 16, 80);
 
-  trackMatter(
-    scene.matter.add.rectangle(startX - 8, y - 20, 16, 70, {
-      isStatic: true,
-      friction: 0.9,
-      label: 'bridge-post',
-    }),
-  );
-  trackMatter(
-    scene.matter.add.rectangle(endX + 8, y - 20, 16, 70, {
-      isStatic: true,
-      friction: 0.9,
-      label: 'bridge-post',
-    }),
-  );
-  visuals.push(scene.add.rectangle(startX - 8, y - 20, 16, 70, COLORS.dirtDark).setDepth(3));
-  visuals.push(scene.add.rectangle(endX + 8, y - 20, 16, 70, COLORS.dirtDark).setDepth(3));
-
-  for (let i = 0; i < n; i += 1) {
-    const t = (i + 0.5) / n;
-    const sag = Math.sin(Math.PI * t) * 18;
-    const px = startX + segW * (i + 0.5);
-    const py = y + sag;
-    trackMatter(
-      scene.matter.add.rectangle(px, py, segW * 0.95, 12, {
-        isStatic: true,
-        friction: 0.95,
-        restitution: 0.02,
-        label: 'bridge',
-      }),
-    );
-    visuals.push(scene.add.rectangle(px, py, segW * 0.9, 10, COLORS.bridge).setDepth(2));
-  }
+  const planks = scene.add.graphics().setDepth(2);
+  visuals.push(planks);
+  planks.fillStyle(COLORS.bridge, 1);
 
   const rope = scene.add.graphics().setDepth(3);
   visuals.push(rope);
   rope.lineStyle(3, COLORS.rope, 1);
   rope.beginPath();
-  rope.moveTo(startX - 8, y - 48);
-  for (let i = 0; i <= n; i += 1) {
-    const t = i / n;
-    const sag = Math.sin(Math.PI * t) * 18;
-    rope.lineTo(startX + span * t, y + sag - 36);
+
+  for (let i = 0; i < n; i += 1) {
+    const t0 = i / n;
+    const t1 = (i + 1) / n;
+    const sag0 = Math.sin(Math.PI * t0) * 22;
+    const sag1 = Math.sin(Math.PI * t1) * 22;
+    const x1 = startX + span * t0;
+    const x2 = startX + span * t1;
+    const y1 = TERRAIN.bridgeY + sag0;
+    const y2 = TERRAIN.bridgeY + sag1;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const slab = scene.matter.add.rectangle((x1 + x2) / 2, (y1 + y2) / 2 + 6, Math.hypot(dx, dy) + 4, 14, {
+      isStatic: true,
+      angle: Math.atan2(dy, dx),
+      friction: 1,
+      restitution: 0,
+      label: 'bridge',
+    });
+    bodies.push(slab);
+    planks.fillRect(x1, y1, Math.max(8, x2 - x1), 10);
+    if (i === 0) {
+      rope.moveTo(x1, y1 - 28);
+    }
+    rope.lineTo(x2, y2 - 28);
   }
   rope.strokePath();
-  rope.strokeLineShape(new Phaser.Geom.Line(startX - 8, y - 48, startX - 8, y + 10));
-  rope.strokeLineShape(new Phaser.Geom.Line(endX + 8, y - 48, endX + 8, y + 10));
-  for (let i = 0; i <= n; i += 1) {
-    const t = i / n;
-    const sag = Math.sin(Math.PI * t) * 18;
-    const px = startX + span * t;
-    rope.strokeLineShape(new Phaser.Geom.Line(px, y + sag - 36, px, y + sag));
-  }
 }
 
 function placeCoins(out: CoinSpot[]): void {
   const mid = (TERRAIN.bridgeGapStart + TERRAIN.bridgeGapEnd) / 2;
   out.push(
-    { x: mid - 80, y: TERRAIN.bridgeY - 70, value: 25 },
-    { x: mid, y: TERRAIN.bridgeY - 95, value: 25 },
-    { x: mid + 80, y: TERRAIN.bridgeY - 70, value: 5 },
+    { x: mid - 70, y: TERRAIN.bridgeY - 80, value: 25 },
+    { x: mid, y: TERRAIN.bridgeY - 110, value: 25 },
+    { x: mid + 70, y: TERRAIN.bridgeY - 80, value: 5 },
   );
 
-  for (let x = 400; x < TERRAIN.endX - 200; x += 320) {
-    if (x > TERRAIN.bridgeGapStart - 100 && x < TERRAIN.bridgeGapEnd + 100) {
+  for (let x = 480; x < TERRAIN.endX - 240; x += 340) {
+    if (x > TERRAIN.bridgeGapStart - 80 && x < TERRAIN.bridgeGapEnd + 80) {
       continue;
     }
-    const y = heightAt(x) - 55 - ((x / 320) % 3) * 18;
-    out.push({ x, y, value: x % 640 < 320 ? 5 : 25 });
+    out.push({
+      x,
+      y: heightAt(x) - 62,
+      value: x % 680 < 340 ? 5 : 25,
+    });
   }
 }
