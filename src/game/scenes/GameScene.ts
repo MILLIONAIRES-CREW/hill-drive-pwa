@@ -26,6 +26,8 @@ export class GameScene extends Phaser.Scene {
   private bestM = 0;
   private ended = false;
   private worldWidth = 8000;
+  private disposeTerrain: (() => void) | undefined;
+  private skyBackdrop: Phaser.GameObjects.GameObject[] = [];
 
   constructor() {
     super(SceneKeys.Game);
@@ -54,6 +56,7 @@ export class GameScene extends Phaser.Scene {
     this.drawSky();
 
     const terrain = buildTerrain(this);
+    this.disposeTerrain = terrain.dispose;
     this.worldWidth = terrain.worldWidth;
     this.startX = 80;
 
@@ -74,12 +77,19 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawSky(): void {
+    for (const layer of this.skyBackdrop) {
+      layer.destroy();
+    }
+    this.skyBackdrop = [];
+
     const g = this.add.graphics().setScrollFactor(0).setDepth(-10);
     g.fillGradientStyle(COLORS.skyTop, COLORS.skyTop, COLORS.skyBottom, COLORS.skyBottom, 1);
     g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    this.skyBackdrop.push(g);
 
     // Soft clouds (parallax-ish fixed)
     const clouds = this.add.graphics().setScrollFactor(0.15).setDepth(-5);
+    this.skyBackdrop.push(clouds);
     clouds.fillStyle(0xffffff, 0.55);
     for (let i = 0; i < 12; i += 1) {
       const x = i * 700 + 100;
@@ -177,8 +187,14 @@ export class GameScene extends Phaser.Scene {
       c.destroy();
     }
     this.coins = [];
-    if (this.vehicle) {
+    this.disposeTerrain?.();
+    this.disposeTerrain = undefined;
+    if (this.vehicle?.chassis?.active) {
       this.vehicle.destroy();
     }
+    for (const layer of this.skyBackdrop) {
+      layer.destroy();
+    }
+    this.skyBackdrop = [];
   }
 }

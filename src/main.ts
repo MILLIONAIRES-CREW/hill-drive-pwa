@@ -96,6 +96,9 @@ function boot(): Phaser.Game | undefined {
     return undefined;
   }
 
+  // Re-boot after pagehide must not stack multiple canvases.
+  parent.replaceChildren();
+
   try {
     return new Phaser.Game(createGameConfig(parent));
   } catch (error) {

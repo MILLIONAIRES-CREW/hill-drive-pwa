@@ -4,6 +4,8 @@ import { COLORS, PHYSICS } from '../config/constants';
 type MatterBody = MatterJS.BodyType;
 type MatterConstraint = MatterJS.ConstraintType;
 
+const TERRAIN_LABELS = new Set(['ground', 'bridge', 'bridge-post']);
+
 export class Vehicle {
   readonly chassis: Phaser.Physics.Matter.Image;
   readonly wheelFront: Phaser.Physics.Matter.Image;
@@ -16,7 +18,7 @@ export class Vehicle {
   private brake = 0;
   private boosting = false;
   private flipTimer = 0;
-  private groundedFrames = 2;
+  private grounded = true;
   private readonly onCollision: (event: { pairs: MatterJS.IPair[] }) => void;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
@@ -24,9 +26,9 @@ export class Vehicle {
     this.ensureTextures();
 
     this.chassis = scene.matter.add.image(x, y, 'jeep-body', undefined, {
-      friction: 0.05,
-      frictionAir: 0.02,
-      density: 0.004,
+      friction: 0.08,
+      frictionAir: 0.03,
+      density: 0.0035,
       chamfer: { radius: 6 },
       label: 'chassis',
     });
@@ -34,27 +36,27 @@ export class Vehicle {
     this.chassis.setDepth(5);
 
     this.wheelRear = scene.matter.add.image(x - 38, y + 28, 'jeep-wheel', undefined, {
-      friction: 0.95,
-      frictionAir: 0.01,
-      density: 0.0025,
-      restitution: 0.1,
+      friction: 1,
+      frictionAir: 0.006,
+      density: 0.0028,
+      restitution: 0.05,
       label: 'wheel',
     });
     this.wheelRear.setCircle(PHYSICS.wheelRadius);
     this.wheelRear.setDepth(6);
 
     this.wheelFront = scene.matter.add.image(x + 38, y + 28, 'jeep-wheel', undefined, {
-      friction: 0.95,
-      frictionAir: 0.01,
-      density: 0.0025,
-      restitution: 0.1,
+      friction: 1,
+      frictionAir: 0.006,
+      density: 0.0028,
+      restitution: 0.05,
       label: 'wheel',
     });
     this.wheelFront.setCircle(PHYSICS.wheelRadius);
     this.wheelFront.setDepth(6);
 
-    this.attachWheel(this.wheelRear, -38, 22);
-    this.attachWheel(this.wheelFront, 38, 22);
+    this.attachWheel(this.wheelRear, -38, 24);
+    this.attachWheel(this.wheelFront, 38, 24);
 
     this.driver = scene.add.container(x, y - 28);
     const body = scene.add.rectangle(0, 4, 18, 22, COLORS.jeep);
@@ -67,33 +69,40 @@ export class Vehicle {
       const rear = this.wheelRear.body as MatterBody;
       const front = this.wheelFront.body as MatterBody;
       for (const pair of event.pairs) {
-        const bodies = [pair.bodyA, pair.bodyB];
-        if (bodies.includes(rear) || bodies.includes(front)) {
-          const other = (bodies[0] === rear || bodies[0] === front ? bodies[1] : bodies[0]) as
-            | MatterBody
-            | undefined;
-          if (other && (other.isStatic || other.label === 'ground' || other.label === 'bridge')) {
-            this.groundedFrames = 3;
-            return;
-          }
+        const a = pair.bodyA as MatterBody;
+        const b = pair.bodyB as MatterBody;
+        if (a !== rear && a !== front && b !== rear && b !== front) {
+          continue;
+        }
+        const other = a === rear || a === front ? b : a;
+        if (this.isTerrainBody(other)) {
+          this.grounded = true;
         }
       }
     };
     scene.matter.world.on('collisionactive', this.onCollision);
   }
 
+  private isTerrainBody(body: MatterBody): boolean {
+    if (body.isStatic) {
+      return true;
+    }
+    const label = body.label ?? '';
+    return TERRAIN_LABELS.has(label);
+  }
+
   private attachWheel(wheel: Phaser.Physics.Matter.Image, offsetX: number, offsetY: number): void {
     const chassisBody = this.chassis.body as MatterBody;
     const wheelBody = wheel.body as MatterBody;
 
-    const spring = this.scene.matter.add.constraint(chassisBody, wheelBody, 8, PHYSICS.axleStiffness, {
+    const spring = this.scene.matter.add.constraint(chassisBody, wheelBody, 10, PHYSICS.axleStiffness, {
       damping: PHYSICS.axleDamping,
       pointA: { x: offsetX, y: offsetY },
       pointB: { x: 0, y: 0 },
     });
-    const axle = this.scene.matter.add.constraint(chassisBody, wheelBody, 14, 0.9, {
-      damping: 0.1,
-      pointA: { x: offsetX, y: offsetY - 6 },
+    const axle = this.scene.matter.add.constraint(chassisBody, wheelBody, 16, 0.95, {
+      damping: 0.14,
+      pointA: { x: offsetX, y: offsetY - 8 },
       pointB: { x: 0, y: 0 },
     });
     this.constraints.push(spring, axle);
@@ -126,6 +135,25 @@ export class Vehicle {
     }
   }
 
+  private wheelTouchesGround(body: MatterBody): boolean {
+    const start = { x: body.position.x, y: body.position.y };
+    const end = { x: body.position.x, y: body.position.y + PHYSICS.groundRayLength };
+    const targets = this.scene.matter.world
+      .getAllBodies()
+      .filter((b) => b !== body && b !== (this.chassis.body as MatterBody));
+    const hits = this.scene.matter.query.ray(targets, start, end, PHYSICS.wheelRadius * 0.4);
+    return hits.some((hit) => this.isTerrainBody(hit.bodyA as MatterBody) || this.isTerrainBody(hit.bodyB as MatterBody));
+  }
+
+  private refreshGrounded(): void {
+    const rear = this.wheelRear.body as MatterBody;
+    const front = this.wheelFront.body as MatterBody;
+    this.grounded =
+      this.wheelTouchesGround(rear) ||
+      this.wheelTouchesGround(front) ||
+      (Math.abs(rear.velocity.y) < 0.25 && Math.abs(front.velocity.y) < 0.25 && rear.position.y > 120);
+  }
+
   setControls(gas: number, brake: number, boosting: boolean): void {
     this.gas = Phaser.Math.Clamp(gas, 0, 1);
     this.brake = Phaser.Math.Clamp(brake, 0, 1);
@@ -133,60 +161,74 @@ export class Vehicle {
   }
 
   update(deltaSec: number): void {
+    this.refreshGrounded();
     const chassisBody = this.chassis.body as MatterBody;
     const rear = this.wheelRear.body as MatterBody;
     const front = this.wheelFront.body as MatterBody;
     const Body = this.scene.matter.body;
+    const onGround = this.grounded;
 
-    const onGround = this.groundedFrames > 0;
-    if (this.groundedFrames > 0) {
-      this.groundedFrames -= 1;
+    if (onGround) {
+      const slope = Math.atan2(front.position.y - rear.position.y, front.position.x - rear.position.x);
+      const delta = Phaser.Math.Angle.Wrap(slope - chassisBody.angle);
+      Body.setAngularVelocity(chassisBody, chassisBody.angularVelocity * 0.84 + delta * 0.05);
+    } else if (Math.abs(chassisBody.angularVelocity) > PHYSICS.maxChassisSpin) {
+      Body.setAngularVelocity(chassisBody, chassisBody.angularVelocity * 0.92);
     }
 
     if (this.gas > 0) {
       if (onGround) {
-        const torque = -PHYSICS.gasTorque * this.gas;
-        Body.setAngularVelocity(
-          rear,
-          Phaser.Math.Clamp(rear.angularVelocity + torque, -PHYSICS.maxWheelSpeed, PHYSICS.maxWheelSpeed),
-        );
-        Body.setAngularVelocity(
-          front,
-          Phaser.Math.Clamp(front.angularVelocity + torque * 0.7, -PHYSICS.maxWheelSpeed, PHYSICS.maxWheelSpeed),
-        );
+        const wheelSpin = -chassisBody.velocity.x * 0.08 * this.gas;
+        Body.setAngularVelocity(rear, wheelSpin);
+        Body.setAngularVelocity(front, wheelSpin * 0.9);
+        const nextVx = chassisBody.velocity.x + PHYSICS.driveAccel * this.gas * deltaSec * 60;
+        Body.setVelocity(chassisBody, {
+          x: Phaser.Math.Clamp(nextVx, -5, PHYSICS.maxDriveSpeed),
+          y: chassisBody.velocity.y,
+        });
       } else {
-        Body.setAngularVelocity(chassisBody, chassisBody.angularVelocity + PHYSICS.airSpin * this.gas);
+        Body.setAngularVelocity(
+          chassisBody,
+          Phaser.Math.Clamp(
+            chassisBody.angularVelocity + PHYSICS.airSpin * this.gas,
+            -PHYSICS.maxChassisSpin,
+            PHYSICS.maxChassisSpin,
+          ),
+        );
       }
     }
 
     if (this.brake > 0) {
       if (onGround) {
-        const torque = PHYSICS.brakeTorque * this.brake;
-        Body.setAngularVelocity(
-          rear,
-          Phaser.Math.Clamp(rear.angularVelocity + torque, -PHYSICS.maxWheelSpeed, PHYSICS.maxWheelSpeed),
-        );
-        Body.setAngularVelocity(
-          front,
-          Phaser.Math.Clamp(front.angularVelocity + torque * 0.7, -PHYSICS.maxWheelSpeed, PHYSICS.maxWheelSpeed),
-        );
+        const nextVx = chassisBody.velocity.x - PHYSICS.brakeAccel * this.brake * deltaSec * 60;
+        Body.setVelocity(chassisBody, {
+          x: Phaser.Math.Clamp(nextVx, -5, PHYSICS.maxDriveSpeed),
+          y: chassisBody.velocity.y,
+        });
       } else {
-        Body.setAngularVelocity(chassisBody, chassisBody.angularVelocity - PHYSICS.airSpin * this.brake);
+        Body.setAngularVelocity(
+          chassisBody,
+          Phaser.Math.Clamp(
+            chassisBody.angularVelocity - PHYSICS.airSpin * this.brake,
+            -PHYSICS.maxChassisSpin,
+            PHYSICS.maxChassisSpin,
+          ),
+        );
       }
     }
 
     if (this.boosting) {
-      const angle = chassisBody.angle;
       Body.applyForce(chassisBody, chassisBody.position, {
-        x: Math.cos(angle) * PHYSICS.boostForce,
-        y: Math.sin(angle) * PHYSICS.boostForce,
+        x: Math.cos(chassisBody.angle) * PHYSICS.boostForce,
+        y: Math.sin(chassisBody.angle) * PHYSICS.boostForce,
       });
     }
 
     this.driver.setPosition(this.chassis.x - Math.sin(this.chassis.rotation) * 8, this.chassis.y - 30);
     this.driver.setRotation(this.chassis.rotation);
 
-    const upsideDown = Math.abs(Phaser.Math.Angle.Wrap(this.chassis.rotation)) > 1.9;
+    const angle = Phaser.Math.Angle.Wrap(this.chassis.rotation);
+    const upsideDown = Math.abs(angle) > 2.35;
     if (upsideDown) {
       this.flipTimer += deltaSec;
     } else {
@@ -195,7 +237,7 @@ export class Vehicle {
   }
 
   isGrounded(): boolean {
-    return this.groundedFrames > 0;
+    return this.grounded;
   }
 
   getFlipSeconds(): number {
@@ -221,9 +263,12 @@ export class Vehicle {
   }
 
   destroy(): void {
-    this.scene.matter.world.off('collisionactive', this.onCollision);
-    for (const c of this.constraints) {
-      this.scene.matter.world.removeConstraint(c);
+    const world = this.scene.matter?.world;
+    if (world) {
+      world.off('collisionactive', this.onCollision);
+      for (const c of this.constraints) {
+        world.removeConstraint(c);
+      }
     }
     this.constraints.length = 0;
     this.driver.destroy();
